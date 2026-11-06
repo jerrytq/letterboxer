@@ -62,7 +62,9 @@ Start the local browser test server, then visit `http://127.0.0.1:8765/tests/bro
 node tests/serve.cjs
 ```
 
-Fixtures cover the legacy and newer poster metadata formats, diary rows, rating markers, empty collections, malformed pagination, and challenge pages. Browser tests also check loading multiple pages, searching, cache restoration, cache removal, diary comparison filters and stopping a comparison. These are representative fixtures, not a captured live-site snapshot.
+Fixtures cover the legacy and newer poster metadata formats, diary rows, rating markers, empty collections, malformed pagination, and challenge pages. Browser tests also check loading multiple pages, searching, cache restoration, cache removal, diary comparison filters and stopping a comparison. Most fixtures are representative examples; the saved diary fixture below preserves actual page markup.
+
+`tests/fixtures/jerrytq-diary.html` contains the diary table and next-page link extracted from a user-provided saved page, with images and SVGs removed. Regression tests check all 50 entries, their exact rating distribution, dates and current `/diary/films/page/2/` pagination. Other fixtures remain representative examples.
 
 Before calling a release verified, load it on live Letterboxd and check:
 

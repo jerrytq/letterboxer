@@ -23,6 +23,8 @@
     const url = new URL(value, collectionURL(member));
     if (url.origin !== "https://letterboxd.com" || url.search || url.hash) throw new Error("Unexpected pagination link. Loading stopped.");
     const parts = url.pathname.split("/").filter(Boolean);
+    // The current diary's Films tab paginates under /diary/films/page/N/.
+    if (collection === "diary" && parts[1] === "diary" && parts[2] === "films") parts.splice(2, 1);
     if (parts[0]?.toLowerCase() !== member.toLowerCase() || parts[1] !== collection ||
         !(parts.length === 2 || (parts.length === 4 && parts[2] === "page" && /^[1-9]\d*$/.test(parts[3])))) {
       throw new Error("Unexpected pagination link. Loading stopped.");
@@ -129,24 +131,24 @@
     checkChallenge(doc);
     const content = doc.querySelector("#content, main") || doc.body;
     const rows = [...content.querySelectorAll("tr.diary-entry-row, #diary-table tbody tr")]
-      .filter((row) => row.matches(".diary-entry-row") || row.querySelector(".td-film-details"));
+      .filter((row) => row.matches(".diary-entry-row") || row.querySelector(".td-film-details, .col-production"));
     let month = "", year = "";
     const entries = rows.map((row, index) => {
       const slug = slugFrom(row);
-      const details = row.querySelector(".td-film-details") || row;
+      const details = row.querySelector(".td-film-details, .col-production") || row;
       const metadata = details.querySelector("[data-film-name], [data-item-name]");
-      const title = details.querySelector("h3, .headline-3, .film-title")?.textContent.trim() ||
+      const title = details.querySelector("h2.primaryname, h2, h3, .headline-3, .film-title")?.textContent.trim() ||
         metadata?.getAttribute("data-film-name") || metadata?.getAttribute("data-item-name") ||
         details.querySelector("a[href*='/film/']")?.textContent.trim() ||
         details.querySelector("img[alt]")?.getAttribute("alt")?.trim() || "Film title unavailable";
-      month = row.querySelector(".td-calendar .month")?.textContent.trim() || month;
-      year = row.querySelector(".td-calendar .year")?.textContent.trim() || year;
-      const day = row.querySelector(".td-day")?.textContent.trim() || "";
-      const dayLink = row.querySelector(".td-day a[href]")?.getAttribute("href") || "";
+      month = row.querySelector(".td-calendar .month, .col-monthdate .month")?.textContent.trim() || month;
+      year = row.querySelector(".td-calendar .year, .col-monthdate .year")?.textContent.trim() || year;
+      const day = row.querySelector(".td-day, .col-daydate")?.textContent.trim() || "";
+      const dayLink = row.querySelector(".td-day a[href], .col-daydate a[href]")?.getAttribute("href") || "";
       const dateParts = dayLink.match(/\/for\/(\d{4})\/(\d{1,2})\/(\d{1,2})(?:\/|$)/);
       const date = row.querySelector("time[datetime]")?.getAttribute("datetime") ||
         (dateParts ? `${dateParts[1]}-${dateParts[2].padStart(2, "0")}-${dateParts[3].padStart(2, "0")}` : [day, month, year].filter(Boolean).join(" "));
-      const reviewHref = row.querySelector(".td-review a[href*='/film/']")?.getAttribute("href");
+      const reviewHref = row.querySelector(".td-review a[href*='/film/'], .col-review a[href*='/film/']")?.getAttribute("href");
       let entryURL = null;
       if (reviewHref && slug) {
         try {
@@ -156,16 +158,26 @@
         } catch { /* Use the diary page when an entry link is malformed. */ }
       }
       const id = row.getAttribute("data-viewing-id") || row.id || entryURL || `page-${page}-row-${index}`;
-      const ratingCell = row.querySelector(".td-rating");
+      const ratingCell = row.querySelector(".td-rating, .col-rating");
+      let diaryURL = collectionURL(member, page, "diary");
+      if (row.querySelector(".col-production") && page > 1) diaryURL = diaryURL.replace("/diary/", "/diary/films/");
+      if (dayLink) {
+        try {
+          const url = new URL(dayLink, diaryURL);
+          if (url.origin === "https://letterboxd.com" && url.pathname.toLowerCase().startsWith(`/${member.toLowerCase()}/diary/`) && /\/for\/\d{4}\/\d{1,2}\/\d{1,2}\/$/.test(url.pathname)) diaryURL = url.href;
+        } catch { /* Retain the diary page if the date link cannot be read. */ }
+      }
       return { id, slug, title, date: date || "Date unavailable", rating: ratingCell ? readRating(ratingCell) : undefined,
         unavailableReason: slug ? "" : "Film identity could not be read from this diary entry.",
-        url: entryURL || collectionURL(member, page, "diary") };
+        url: entryURL || diaryURL };
     });
     const nextPage = nextPageNumber(content, member, page, "diary");
     if (!entries.length && (page !== 1 || nextPage || !/(?:hasn[’']t|haven[’']t|has not|have not) (?:logged|added)|no (?:diary entries|entries|films)|diary is empty/i.test(content.textContent))) {
       throw new Error("Couldn’t read the diary. Open the member’s Diary page to check access, then try again.");
     }
-    return { films: entries, nextPage };
+    const nextLink = content.querySelector("a.next, a.paginate-next, .pagination a[rel='next']");
+    const nextURL = nextPage ? new URL(nextLink.getAttribute("href"), collectionURL(member)).href : null;
+    return { films: entries, nextPage, nextURL };
   }
 
   function compareRatings(entries, films) {
@@ -263,15 +275,20 @@
     collection = "films", key = (film) => film.slug }) {
     const films = new Map();
     let page = 1;
+    let url = collectionURL(member, page, collection);
     while (page) {
       signal.throwIfAborted();
       if (page > 1000) throw new Error("This collection is too large for this version. Results are incomplete.");
-      const result = await fetchPage(collectionURL(member, page, collection), signal);
+      const result = await fetchPage(url, signal);
       signal.throwIfAborted();
       const parsed = parse(result, member, page);
+      if (parsed.nextURL && pageNumber(parsed.nextURL, member, collection) !== parsed.nextPage) {
+        throw new Error("Unexpected pagination link. Loading stopped.");
+      }
       for (const film of parsed.films) films.set(key(film), film);
       onProgress({ films: [...films.values()], pages: page, complete: !parsed.nextPage });
       page = parsed.nextPage;
+      if (page) url = parsed.nextURL || collectionURL(member, page, collection);
       if (page) {
         signal.throwIfAborted();
         await new Promise((resolve, reject) => {

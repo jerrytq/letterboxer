@@ -115,6 +115,8 @@ test('rating labels distinguish no rating from unreadable metadata', () => {
 test('diary pagination preserves every rewatch and confines requests to diary pages', async () => {
   assert.equal(core.pageNumber('/jerry/diary/page/2/', 'jerry', 'diary'), 2);
   assert.throws(() => core.pageNumber('/jerry/films/page/2/', 'jerry', 'diary'));
+  assert.equal(core.pageNumber('/jerry/diary/films/page/2/', 'jerry', 'diary'), 2);
+  assert.throws(() => core.pageNumber('/someoneelse/diary/films/page/2/', 'jerry', 'diary'));
   const urls = [];
   const entries = await core.crawl({
     member: 'jerry', collection: 'diary', key: (entry) => entry.id, delay: 0,

@@ -88,6 +88,33 @@
     const results = Letterboxer.compareRatings(entries, [{ slug: 'dune', rating: 8 }]);
     assert(results[0].status === 'unavailable' && results[1].status === 'different');
   });
+  await test('Actual saved jerrytq diary: all 50 titles, dates and star ratings are read', async () => {
+    const html = await (await fetch('fixtures/jerrytq-diary.html')).text();
+    const result = Letterboxer.parseDiaryPage(doc(html), 'jerrytq', 1);
+    assert(result.films.length === 50);
+    assert(result.films.every((entry) => entry.slug && entry.title !== 'Film title unavailable' && /^\d{4}-\d{2}-\d{2}$/.test(entry.date) && Number.isInteger(entry.rating)));
+    const first = result.films[0];
+    assert(first.title === 'Tokyo Gore Police' && first.slug === 'tokyo-gore-police');
+    assert(first.rating === 7 && first.date === '2026-11-05' && first.id === '1572946521');
+    assert(first.url === 'https://letterboxd.com/jerrytq/diary/films/for/2026/11/05/');
+    const counts = Array(10).fill(0);
+    result.films.forEach((entry) => counts[entry.rating - 1]++);
+    assert(JSON.stringify(counts) === JSON.stringify([4, 4, 9, 3, 5, 3, 8, 10, 3, 1]), 'Every extracted rating must match the saved page');
+    assert(result.nextPage === 2 && result.nextURL === 'https://letterboxd.com/jerrytq/diary/films/page/2/');
+  });
+  await test('Diary crawler follows the exact current Films-tab pagination URL', async () => {
+    const html = await (await fetch('fixtures/jerrytq-diary.html')).text();
+    const urls = [];
+    const entries = await Letterboxer.crawl({ member: 'jerrytq', collection: 'diary', key: (entry) => entry.id,
+      signal: new AbortController().signal, delay: 0, parse: Letterboxer.parseDiaryPage,
+      fetchPage: async (url) => {
+        urls.push(url);
+        return doc(urls.length === 1 ? html : diary(diaryRow('page-2', 'dune', 'Dune', stars(8))).replaceAll('/tester/', '/jerrytq/'));
+      }
+    });
+    assert(entries.length === 51);
+    assert(urls[1] === 'https://letterboxd.com/jerrytq/diary/films/page/2/');
+  });
   await test('Unreadable rating markers remain unavailable; a missing diary rating cell is unknown', () => {
     assert(Letterboxer.readRating(doc('<span class="rating">?</span>').body) === undefined);
     assert(Letterboxer.readRating(doc(stars(99)).body) === undefined);

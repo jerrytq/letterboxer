@@ -8,6 +8,7 @@ const routes = {
   '/content.js': ['content.js', 'text/javascript'],
   '/diary.js': ['diary.js', 'text/javascript'],
   '/average.js': ['average.js', 'text/javascript'],
+  '/tests/fixtures/jerrytq-diary.html': ['tests/fixtures/jerrytq-diary.html', 'text/html'],
 };
 http.createServer((req, res) => {
   const route = routes[req.url];

@@ -1,0 +1,8 @@
+body { width:290px; margin:0; padding:24px; background:#141b23; color:#dce3eb; font:13px/1.6 system-ui,sans-serif; }
+.brand { color:#00d674; letter-spacing:2px; font-size:10px; font-weight:700; }
+h1 { font-size:23px; line-height:1.2; letter-spacing:-.5px; margin:12px 0 20px; color:#fff; }
+p { color:#afbdcd; }
+strong { color:#e6edf5; }
+a { display:inline-block; color:#00e175; margin-top:6px; text-decoration:none; }
+a:focus-visible { outline:2px solid #00e175; outline-offset:4px; }
+footer { border-top:1px solid #34404e; margin-top:22px; padding-top:14px; color:#91a1b4; font-size:11px; }
